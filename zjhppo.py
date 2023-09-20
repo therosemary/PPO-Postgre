@@ -3,8 +3,25 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 from torch.distributions import MultivariateNormal
+from torch.optim import Adam
 
 status_dim = action_dim = 10
+
+
+class MyEnv:
+
+    def __int__(self):
+        self.started = [0, 0]
+        self.action_dim = 2
+
+    def reset(self):
+        self.__int__()
+
+    def step(self, action):
+        new_state = 1
+        reward = 2
+        return new_state, reward, False
+
 
 class ZjhNet(nn.Module):
 
@@ -25,23 +42,35 @@ class PPO:
     def __int__(self, s_dim, a_dim):
         self.status_dim = s_dim
         self.action_dim = a_dim
+        self.lr = 0.001  # learning rate
         self.actor = ZjhNet(s_dim, a_dim)
+        self.actor_optim = Adam(self.actor.parameters(), lr=self.lr)
         self.critic = ZjhNet(s_dim, 1)
+        self.critic_optim = Adam(self.critic.parameters(), lr=self.lr)
         # 一次取样最多的步长数
         self.max_batch = 3200
         # 单次episode最多的步长数  因此一次beach可能的episode数量在[2, 3200] 包含小数 可能没结束但是步长够了
         self.max_per_episode = 2400
         # 学习效率
         self.gamma = 0.1
+        self.env = MyEnv()
+        self.action_dim = self.env.action_dim
+        # 通过假设一个标准差 构造一个对角矩阵
+        self.cov_var = torch.full(size=(self.action_dim,), fill_value=0.5)
+        self.cov_mat = torch.diag(self.cov_var)
+
+        # 规定每次数据的网络参数迭代次数
+        self.max_times_of_net = 6
+        # 每次迭代网络参数时允许变更的概率比例
+        self.changing_rate = 0.25
 
     def get_actions(self, state):
         # 根据状态 用actor网络采用随机梯度方法 给出所选动作以及概率
         # 通过actor网络输出action的平均期望
         action_mean = self.actor(state)
-        # 通过假设一个标准差 构造一个对角矩阵
-        cov = torch.diag(torch.full(size=(self.action_dim, ), full_value=0.5))
+
         # 使用均值与假设的标准差 做协方差矩阵
-        dist = MultivariateNormal(action_mean, cov)
+        dist = MultivariateNormal(action_mean, self.cov_mat)
         action = dist.sample()
         log_prob = dist.log_prob(action)
         return action.detach().numpy(), log_prob.detach()
@@ -56,9 +85,19 @@ class PPO:
                 res.append(reward)
         return torch.tensor(res, dtype=torch.float)
 
+    def evaluate_v(self, states, actions):
+        v_list = self.critic(states).squeeze()
+
+        # Calculate the log probabilities of batch actions using most recent actor network.
+        # This segment of code is similar to that in get_action()
+        mean = self.actor(actions)
+        dist = MultivariateNormal(mean, self.cov_mat)
+        log_probs = dist.log_prob(actions)
+        return v_list, log_probs
+
     def collect_batch_data(self):
         beach_count = 0
-        env = 'gym-env'
+        env = self.env
 
         # 每个步长收集的信息
         batch_state = []
@@ -90,3 +129,34 @@ class PPO:
         batch_log_prob = torch.tensor(batch_log_prob, dtype=torch.float)
         batch_rewards_to_go = self.compute_rewards(batch_reward)
         return batch_state, batch_actions, batch_rewards_to_go, batch_log_prob, batch_episode_lens
+
+    def learn(self, target_times):
+        current_times = 1
+        while current_times < target_times:
+            # 拿取一批量的数据
+            batch_state, batch_actions, batch_rewards_to_go, batch_log_prob, batch_episode_lens = self.collect_batch_data()
+
+            # 计算优势函数里的V值
+            v_, _ = self.evaluate_v(batch_state, batch_actions)
+
+            # 计算优势函数
+            a_k = batch_rewards_to_go - v_
+
+            for this_time in range(self.max_times_of_net):
+                # 运用此时的网络得出此时的V值以及动作分布概率
+                v_, pros = self.evaluate_v(batch_state, batch_actions)
+                # 取loss
+                changing_rate = torch.exp(pros - batch_log_prob)
+                surr1 = a_k * changing_rate
+                surr2 = a_k * torch.clamp(changing_rate, 1 - self.changing_rate, 1 + self.changing_rate)
+
+                actor_loss = (-torch.min(surr1, surr2)).mean()
+                critic_loss = nn.MSELoss()(v_, batch_rewards_to_go)
+
+                self.actor_optim.zero_grad()
+                actor_loss.backward(retain_graph=True)
+                self.actor_optim.step()
+
+                self.critic_optim.zero_grad()
+                critic_loss.backward()
+                self.critic_optim.step()
