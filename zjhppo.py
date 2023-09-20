@@ -160,3 +160,10 @@ class PPO:
                 self.critic_optim.zero_grad()
                 critic_loss.backward()
                 self.critic_optim.step()
+
+
+if __name__ == '__main__':
+    import gym
+    env = gym.make('Pendulum-v0')
+    model = PPO(env)
+    model.learn(10000)
