@@ -1,5 +1,6 @@
 import numpy as np
 import torch
+import matplotlib.pyplot as plt
 from torch import nn
 from torch.nn import functional as F
 from torch.distributions import MultivariateNormal
@@ -7,7 +8,7 @@ from torch.optim import Adam
 from torch.utils.tensorboard import SummaryWriter
 
 
-writer = SummaryWriter('./zjh_logs')
+writer = SummaryWriter('./zjh_logs/go')
 
 
 class MyEnv:
@@ -100,7 +101,7 @@ class PPO:
 
         # Calculate the log probabilities of batch actions using most recent actor network.
         # This segment of code is similar to that in get_action()
-        mean = self.actor(actions)
+        mean = self.actor(states)
         dist = MultivariateNormal(mean, self.cov_mat)
         log_probs = dist.log_prob(actions)
         return v_list, log_probs
@@ -149,6 +150,8 @@ class PPO:
 
     def learn(self, target_times):
         current_times = 1
+        actor_loss_list = []
+        critic_loss_list = []
         while current_times < target_times:
             # 拿取一批量的数据
             batch_state, batch_actions, batch_rewards_to_go, batch_log_prob, batch_episode_lens = self.collect_batch_data()
@@ -159,6 +162,7 @@ class PPO:
             # 计算优势函数
             a_k = batch_rewards_to_go - v_
 
+            # for this_time in range(self.max_times_of_net):
             for this_time in range(self.max_times_of_net):
                 # 运用此时的网络得出此时的V值以及动作分布概率
                 v_, pros = self.evaluate_v(batch_state, batch_actions)
@@ -168,12 +172,10 @@ class PPO:
                 surr2 = a_k * torch.clamp(changing_rate, 1 - self.changing_rate, 1 + self.changing_rate)
 
                 actor_loss = (-torch.min(surr1, surr2)).mean()
-                writer.add_scalar('actor网络Loss', actor_loss, current_times)
-
+                actor_loss_list.append(actor_loss)
                 critic_loss = nn.MSELoss()(v_, batch_rewards_to_go)
-                writer.add_scalar('critic网络Loss', critic_loss, current_times)
-                writer.close()
-
+                critic_loss_list.append(critic_loss)
+                print(actor_loss_list)
                 self.actor_optim.zero_grad()
                 actor_loss.backward(retain_graph=True)
                 self.actor_optim.step()
@@ -181,7 +183,13 @@ class PPO:
                 self.critic_optim.zero_grad()
                 critic_loss.backward()
                 self.critic_optim.step()
+                this_time += 1
 
+            current_times += 1
+        plt.plot((1, 6), actor_loss_list, 'b-')
+        plt.plot((1, 6), critic_loss_list, 'r-')
+        plt.title('return')
+        plt.show()
 
 if __name__ == '__main__':
     def print_env(env_):
@@ -204,4 +212,4 @@ if __name__ == '__main__':
     # print(type(env.observation_space))
 
     model = PPO(env)
-    model.learn(100)
+    model.learn(10)

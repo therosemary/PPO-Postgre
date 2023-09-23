@@ -400,3 +400,7 @@ class PPO:
         self.logger['batch_lens'] = []
         self.logger['batch_rews'] = []
         self.logger['actor_losses'] = []
+
+
+if __name__ == '__main__':
+    from zjhmain import ZjhNet
