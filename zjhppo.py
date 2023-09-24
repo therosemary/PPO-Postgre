@@ -9,6 +9,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 
 writer = SummaryWriter('./zjh_logs/go')
+torch.autograd.set_detect_anomaly(True)
 
 
 class MyEnv:
@@ -117,13 +118,14 @@ class PPO:
         batch_log_prob = []
         # 小批次收集的信息
         batch_episode_lens = []
-
-        while beach_count < self.max_batch:
+        done = False
+        # while beach_count < self.max_batch:
+        for s in range(5):
             state_begin = env_tmp.reset()[0]
             # print('起始位置:{}'.format(state_begin))
             each_epi = 0
             tem_reward = []
-            for each_epi in range(self.max_per_episode):
+            while not done:
                 action, prob = self.get_actions(state_begin)
                 env_tmp.render()
                 state_begin, reward, done = env_tmp.step(action)[0:3]
@@ -140,7 +142,7 @@ class PPO:
                 if done:
                     break
 
-            batch_episode_lens.append(each_epi+1)
+            batch_episode_lens.append(each_epi + 1)
             batch_reward.append(tem_reward)
         batch_state = torch.tensor(batch_state, dtype=torch.float)
         batch_actions = torch.tensor(batch_actions, dtype=torch.float)
@@ -175,7 +177,7 @@ class PPO:
                 actor_loss_list.append(actor_loss)
                 critic_loss = nn.MSELoss()(v_, batch_rewards_to_go)
                 critic_loss_list.append(critic_loss)
-                print(actor_loss_list)
+
                 self.actor_optim.zero_grad()
                 actor_loss.backward(retain_graph=True)
                 self.actor_optim.step()
