@@ -45,8 +45,8 @@ class PPO2:
         self.num_envs = 10
         # Extract environment information
         self.envs = envs
-        self.obs_dim = envs.single_observation_space.shape[0]
-        self.act_dim = envs.single_action_space.shape[0]
+        self.obs_dim = 8
+        self.act_dim = 2
 
         # Initialize actor and critic networks
         self.actor = policy_class(self.obs_dim, self.act_dim, 0.01).to(self.device)  # ALG STEP 1

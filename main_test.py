@@ -178,7 +178,7 @@ def eval_policy(policy, env, render=False):
         _log_summary(ep_len=ep_len, ep_ret=ep_ret, ep_num=ep_num)
 
 
-def train(envs, hyperparameters, actor_model, critic_model):
+def train(envs, hyperparameters):
     """
         Trains the model.
 
@@ -197,18 +197,18 @@ def train(envs, hyperparameters, actor_model, critic_model):
     # model = PPO(policy_class=FeedForwardNN, env=envs, **hyperparameters)
     model = PPO2(policy_class=FeedForwardNN, envs=envs, **hyperparameters)
 
-    # Tries to load in an existing actor/critic model to continue training on
-    if actor_model != '' and critic_model != '':
-        print(f"Loading in {actor_model} and {critic_model}...", flush=True)
-        model.actor.load_state_dict(torch.load(actor_model))
-        model.critic.load_state_dict(torch.load(critic_model))
-        print(f"Successfully loaded.", flush=True)
-    elif actor_model != '' or critic_model != '':  # Don't train from scratch if user accidentally forgets actor/critic model
-        print(
-            f"Error: Either specify both actor/critic models or none at all. We don't want to accidentally override anything!")
-        sys.exit(0)
-    else:
-        print(f"Training from scratch.", flush=True)
+    # # Tries to load in an existing actor/critic model to continue training on
+    # if actor_model != '' and critic_model != '':
+    #     print(f"Loading in {actor_model} and {critic_model}...", flush=True)
+    #     model.actor.load_state_dict(torch.load(actor_model))
+    #     model.critic.load_state_dict(torch.load(critic_model))
+    #     print(f"Successfully loaded.", flush=True)
+    # elif actor_model != '' or critic_model != '':  # Don't train from scratch if user accidentally forgets actor/critic model
+    #     print(
+    #         f"Error: Either specify both actor/critic models or none at all. We don't want to accidentally override anything!")
+    #     sys.exit(0)
+    # else:
+    #     print(f"Training from scratch.", flush=True)
 
     # Train the PPO model with a specified total timesteps
     # NOTE: You can change the total timesteps here, I put a big number just because
@@ -264,7 +264,7 @@ def make_env(gym_id, mode):
     return thunk
 
 
-def main(args):
+def main():
     """
         The main function to run.
 
@@ -304,17 +304,20 @@ def main(args):
     # 		raise ValueError(f"{env} is not a valid gym environment")
     # 	env_list.append(env)
     # print(env_list)
-    envs = gym.vector.SyncVectorEnv([make_env("BipedalWalker-v3", True)
-                                     for i in range(num_envs)])
-    # envs = gym.vector.SyncVectorEnv(env_list)
-    # Train or test, depending on the mode specified
-    if args.mode == 'train':
-        train(envs=envs, hyperparameters=hyperparameters, actor_model=args.actor_model, critic_model=args.critic_model)
-    else:
-        env = gym.make("BipedalWalker-v3", hardcore=True)
-        test(env=env, actor_model=args.actor_model)
+    envs = gym.make('LunarLander-v2', render_mode="human", continuous=True)
+
+    train(envs=envs, hyperparameters=hyperparameters)
+
+    # envs = gym.vector.SyncVectorEnv([make_env("BipedalWalker-v3", True)
+    #                                  for i in range(num_envs)])
+    # # envs = gym.vector.SyncVectorEnv(env_list)
+    # # Train or test, depending on the mode specified
+    # if args.mode == 'train':
+    #     train(envs=envs, hyperparameters=hyperparameters, actor_model=args.actor_model, critic_model=args.critic_model)
+    # else:
+    #     env = gym.make("BipedalWalker-v3", hardcore=True)
+    #     test(env=env, actor_model=args.actor_model)
 
 
 if __name__ == '__main__':
-    args = get_args()  # Parse arguments from command line
-    main(args)
+    main()

@@ -51,8 +51,8 @@ class ZjhNet(nn.Module):
 class PPO:
 
     def __init__(self, env_):
-        s_dim = 8
-        a_dim = 2
+        s_dim = env_.observation_space.shape[0] if env_.observation_space.shape else 0
+        a_dim = env_.action_space.shape[0]
         self.status_dim = s_dim
         self.action_dim = a_dim
         self.lr = 0.001  # learning rate
@@ -209,26 +209,20 @@ class PPO:
 
 
 if __name__ == '__main__':
-    # def print_env(env_):
-    #     print(env_.action_space)
-    #     print(type(env_.action_space))
-    #     print(env_.observation_space)
-    #     print(type(env_.observation_space))
-    #     print('*************************************')
+    def print_env(env_):
+        print(env_.action_space.shape)
+        print(env_.action_space)
+        print(env_.action_space)
+        print(type(env_.action_space))
+        print(env_.observation_space.shape)
+        print(env_.observation_space)
+        print(type(env_.observation_space))
+        print('*************************************')
 
     import gym
     env = gym.make('LunarLander-v2', render_mode="human", continuous=True)
-    # print_env(env)
-    # print(env.action_space)
-    # print(env.action_space.shape)
-    # print(env.action_space.shape[0])
-    # print(type(env.action_space))
-    # print(env.observation_space)
-    # print(env.observation_space.shape)
-    # print(env.observation_space.shape[0])
-    # print(type(env.observation_space))
-    # for i in range(7):
-    #     state_begin = env.reset()[0]
-    #     print(state_begin)
+    print_env(env)
+    env = gym.make('CartPole-v1', render_mode="human")
+    print_env(env)
     model = PPO(env)
     model.learn(10)
