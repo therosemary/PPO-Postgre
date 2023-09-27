@@ -31,11 +31,18 @@ class ZjhNet(nn.Module):
 
     def __init__(self, in_dim, out_dim):
         super(ZjhNet, self).__init__()
-        self.layer1 = nn.Linear(in_dim, 100)
-        self.layer2 = nn.Linear(100, 200)
-        self.layer3 = nn.Linear(200, out_dim)
+        self.layer1 = self.layer_init(nn.Linear(in_dim, 100))
+        self.layer2 = self.layer_init(nn.Linear(100, 100))
+        self.layer3 = self.layer_init(nn.Linear(100, out_dim))
+
+    def layer_init(self, layer, std=np.sqrt(2), bias_const=0.0):
+        torch.nn.init.orthogonal_(layer.weight, std)
+        torch.nn.init.constant_(layer.bias, bias_const)
+        return layer
 
     def forward(self, data):
+        if isinstance(data, np.ndarray):
+            data = torch.tensor(data, dtype=torch.float)
         activation1 = F.relu(self.layer1(data))
         activation2 = F.relu(self.layer2(activation1))
         return self.layer3(activation2)
@@ -99,7 +106,6 @@ class PPO:
 
     def evaluate_v(self, states, actions):
         v_list = self.critic(states).squeeze()
-
         # Calculate the log probabilities of batch actions using most recent actor network.
         # This segment of code is similar to that in get_action()
         mean = self.actor(states)
@@ -118,9 +124,9 @@ class PPO:
         batch_log_prob = []
         # 小批次收集的信息
         batch_episode_lens = []
-        done = False
         # while beach_count < self.max_batch:
-        for s in range(5):
+        for s in range(3):
+            done = False
             state_begin = env_tmp.reset()[0]
             # print('起始位置:{}'.format(state_begin))
             each_epi = 0
@@ -132,8 +138,6 @@ class PPO:
                 beach_count += 1
                 # print('本次动作奖励：{}, 新的位置:{},状态:{}'.format(reward, state_begin, done))
                 # print('-------------------')
-                if done:
-                    print(each_epi)
                 batch_state.append(state_begin)
                 batch_actions.append(action)
                 batch_log_prob.append(prob)
@@ -141,7 +145,8 @@ class PPO:
 
                 if done:
                     break
-
+                each_epi = each_epi + 1
+            print(each_epi)
             batch_episode_lens.append(each_epi + 1)
             batch_reward.append(tem_reward)
         batch_state = torch.tensor(batch_state, dtype=torch.float)
@@ -157,6 +162,7 @@ class PPO:
         while current_times < target_times:
             # 拿取一批量的数据
             batch_state, batch_actions, batch_rewards_to_go, batch_log_prob, batch_episode_lens = self.collect_batch_data()
+            print(len(batch_state))
 
             # 计算优势函数里的V值
             v_, _ = self.evaluate_v(batch_state, batch_actions)
@@ -166,25 +172,33 @@ class PPO:
 
             # for this_time in range(self.max_times_of_net):
             for this_time in range(self.max_times_of_net):
+                print('-------------------------')
                 # 运用此时的网络得出此时的V值以及动作分布概率
                 v_, pros = self.evaluate_v(batch_state, batch_actions)
                 # 取loss
                 changing_rate = torch.exp(pros - batch_log_prob)
                 surr1 = a_k * changing_rate
+                #   将张量控制在这个区间内 超过取1 + self.changing_rate  小于取1 - self.changing_rate
                 surr2 = a_k * torch.clamp(changing_rate, 1 - self.changing_rate, 1 + self.changing_rate)
 
                 actor_loss = (-torch.min(surr1, surr2)).mean()
+                new_actor = self.actor
+                actor_optima = Adam(new_actor.parameters(), lr=self.lr)
+                actor_optima.zero_grad()
+                actor_loss.backward(retain_graph=True)
+                actor_optima.step()
+                self.actor = new_actor
+
                 actor_loss_list.append(actor_loss)
+
                 critic_loss = nn.MSELoss()(v_, batch_rewards_to_go)
                 critic_loss_list.append(critic_loss)
 
-                self.actor_optim.zero_grad()
-                actor_loss.backward(retain_graph=True)
-                self.actor_optim.step()
-
-                self.critic_optim.zero_grad()
+                new_critic = self.critic
+                critic_optima = Adam(new_critic.parameters(), lr=self.lr)
+                critic_optima.zero_grad()
                 critic_loss.backward()
-                self.critic_optim.step()
+                critic_optima.step()
                 this_time += 1
 
             current_times += 1
@@ -193,17 +207,18 @@ class PPO:
         plt.title('return')
         plt.show()
 
+
 if __name__ == '__main__':
-    def print_env(env_):
-        print(env_.action_space)
-        print(type(env_.action_space))
-        print(env_.observation_space)
-        print(type(env_.observation_space))
-        print('*************************************')
+    # def print_env(env_):
+    #     print(env_.action_space)
+    #     print(type(env_.action_space))
+    #     print(env_.observation_space)
+    #     print(type(env_.observation_space))
+    #     print('*************************************')
 
     import gym
     env = gym.make('LunarLander-v2', render_mode="human", continuous=True)
-    print_env(env)
+    # print_env(env)
     # print(env.action_space)
     # print(env.action_space.shape)
     # print(env.action_space.shape[0])
@@ -212,6 +227,8 @@ if __name__ == '__main__':
     # print(env.observation_space.shape)
     # print(env.observation_space.shape[0])
     # print(type(env.observation_space))
-
+    # for i in range(7):
+    #     state_begin = env.reset()[0]
+    #     print(state_begin)
     model = PPO(env)
     model.learn(10)
