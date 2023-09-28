@@ -5,7 +5,6 @@ import time
 from distutils.util import strtobool
 
 import gym
-import pybullet_envs  # fmt: off
 import numpy as np
 import torch
 import torch.nn as nn
