@@ -1,6 +1,6 @@
 import torch
 import gym
-from hisppo import PPO2
+from ppo_ver1 import PPO2
 import torch
 from torch import nn
 import torch.nn.functional as F

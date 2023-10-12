@@ -212,8 +212,6 @@ def get_env_info(envs):
     print(next_state, reward, done)
     next_state, reward, done = envs.step(3)[0:3]
     print(next_state, reward, done)
-    next_state, reward, done = envs.step(4)[0:3]
-    print(next_state, reward, done)
 
 if __name__ == '__main__':
     # envs__ = gym.make('MountainCar-v0', render_mode='human')
@@ -221,24 +219,4 @@ if __name__ == '__main__':
     envs__ = gym.make('LunarLander-v2')
     # handler = PPOHandler(envs__)
     # handler.learn()
-    # get_env_info(envs__)
-    ss = nn.Sequential(
-            # prod()乘积
-            layer_init(nn.Linear(4, 64)),
-            nn.Tanh(),
-            layer_init(nn.Linear(64, 64)),
-            nn.Tanh(),
-            layer_init(nn.Linear(64, 2), std=1.0),
-        )
-    input_ = torch.Tensor([4,5,6,7])
-    print(ss(input_))
-    probs = Categorical(logits=ss(input_))
-    print(probs)
-    action = probs.sample()
-    print(action)
-    qq = torch.Tensor([4,5,6,7])
-    probs = Categorical(logits=qq)
-    print(probs)
-    action = probs.sample()
-    print(action)
-
+    get_env_info(envs__)
