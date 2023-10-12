@@ -209,20 +209,20 @@ class PPO:
 
 
 if __name__ == '__main__':
-    def print_env(env_):
-        print(env_.action_space.shape)
-        print(env_.action_space)
-        print(env_.action_space)
-        print(type(env_.action_space))
-        print(env_.observation_space.shape)
-        print(env_.observation_space)
-        print(type(env_.observation_space))
-        print('*************************************')
-
     import gym
-    env = gym.make('LunarLander-v2', render_mode="human", continuous=True)
-    print_env(env)
-    env = gym.make('CartPole-v1', render_mode="human")
-    print_env(env)
-    model = PPO(env)
-    model.learn(10)
+    from gym import envs
+
+    def print_env(env_str):
+        envs__ = gym.make(env_str)
+        print('环境名称:{}'.format(env_str))
+        print('环境动作空间:{}'.format(envs__.action_space))
+        print('环境动作空间shape:{}'.format(envs__.action_space.shape))
+        print('环境动作空间shape:{}'.format(envs__.action_space.n))
+        print('环境状态空间:{}'.format(envs__.observation_space))
+        print('环境状态空间shape:{}'.format(envs__.observation_space.shape))
+        print('--------------------------')
+
+    for envs_ in envs.registry.values():
+        print_env(envs_.id)
+
+
