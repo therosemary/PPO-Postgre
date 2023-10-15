@@ -16,10 +16,10 @@ class TaskInfo:
     def __init__(self):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.learning_rate = 0.001  # 学习率
-        self.total_timesteps = 30000
-        self.num_steps = 500  # 每回合最多行动次数
-        self.batch_size = 500  # 每批次数据最多行动次数
-        self.minibatch_size = 100  # 每批次数据最多行动次数
+        self.total_timesteps = 1000
+        self.num_steps = 200  # 每回合最多行动次数
+        self.batch_size = 200  # 每批次数据最多行动次数
+        self.minibatch_size = 50  # 每批次数据最多行动次数
         self.gamma = 0.01        # 奖励gamma
         self.clipping = 0.2
         self.num_envs = 1        # 并行任务数
@@ -214,9 +214,13 @@ def get_env_info(envs):
     print(next_state, reward, done)
 
 if __name__ == '__main__':
+    from postgre_env import PostGreEnv
     # envs__ = gym.make('MountainCar-v0', render_mode='human')
     # envs__ = gym.make('LunarLander-v2', render_mode='human')
-    envs__ = gym.make('LunarLander-v2')
-    # handler = PPOHandler(envs__)
-    # handler.learn()
-    get_env_info(envs__)
+    # envs__1 = gym.make('LunarLander-v2')
+    # print(envs__1.action_space.shape)
+    envs__ = PostGreEnv()
+    handler = PPOHandler(envs__)
+    handler.learn()
+    print("第一次查询速度", envs__.first_query_cost)
+    print("学习完的查询速度", envs__.query_cost_now)
