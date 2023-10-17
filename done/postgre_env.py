@@ -1,12 +1,15 @@
 import time
 from io import StringIO
-
+import matplotlib.pyplot as plt
+import numpy as np
 import psycopg2
 import torch
 from faker import Faker
 from interval3 import Interval
 
 from sql_str import *
+
+plt.style.use('_mpl-gallery')
 
 max_memory = 1024 * 1024 * 8
 min_maintenance_work_mem = 1
@@ -68,15 +71,50 @@ class PostGreEnv:
         self.action_space = Shape((), 12)
         self.first_query_cost = 0
         self.query_cost_now = 0
+        self.learning_data_before = []
+        self.learning_data_after = [[], [], []]
 
     @staticmethod
     def query_test(database_conn):
+        """单表随机读性能查询"""
         s = time.time()
         cur = database_conn.cursor()
-        cur.execute(query_sql)
+        for i in range(1):
+            cur.execute(sing_query_sql)
+        cost = time.time() - s
+        return cost/1
+
+    @staticmethod
+    def query_inner_test(database_conn):
+        """多表联查性能测试"""
+        s = time.time()
+        cur = database_conn.cursor()
+        for i in range(1):
+            cur.execute(multi_query_sql)
         # res = cur.fetchall()
         cost = time.time() - s
-        return cost
+        return cost/1
+
+    @staticmethod
+    def update_test(database_conn):
+        """更新表操作"""
+        s = time.time()
+        cur = database_conn.cursor()
+        for i in range(1):
+            cur.execute(update_query_sql)
+        # res = cur.fetchall()
+        cost = time.time() - s
+        return cost/1
+
+    def calculate_cost(self, database_conn, is_save=False):
+        query1 = self.query_test(database_conn)
+        query2 = self.query_inner_test(database_conn)
+        query3 = self.update_test(database_conn)
+        if is_save:
+            self.learning_data_after[0].append(query1)
+            self.learning_data_after[1].append(query2)
+            self.learning_data_after[2].append(query3)
+        return query1 + query2 + query3
 
     def get_effect_of_this(self, argument, des):
         # 修改参数并测试给出奖励
@@ -88,7 +126,7 @@ class PostGreEnv:
         if is_change:
             old_isolation_level = database_conn.isolation_level
             database_conn.set_isolation_level(0)
-            time_before = self.query_test(database_conn)
+            time_before = self.calculate_cost(database_conn)
             alter_sql = self.get_alter_sql(argument, new_state[argument_name_dict[argument]])
             reload_sql = 'select pg_reload_conf();'
             cur.execute(alter_sql)
@@ -96,11 +134,9 @@ class PostGreEnv:
 
             database_conn.set_isolation_level(old_isolation_level)
             cur.execute('show shared_buffers;')
-            time_after = self.query_test(database_conn)
+            time_after = self.calculate_cost(database_conn)
             time_change = time_after - time_before
             self.query_cost_now = time_after
-            print('参数： {}, 动作: {}'.format(argument, '降低' if des else '升高'))
-            print('本次查询相比上次查询多了： {}s'.format(time_change))
             if time_change > 0:
                 reward = -time_change
             else:
@@ -113,6 +149,21 @@ class PostGreEnv:
         return """
             ALTER SYSTEM SET {}={};
         """.format(argument, value)
+
+    def show_plt(self):
+        plt_data = self.learning_data_after
+        x = np.arange(0, len(plt_data[0]))
+        y = np.vstack([plt_data[0], plt_data[1], plt_data[2]])
+
+        # plot
+        fig, ax = plt.subplots()
+
+        ax.stackplot(x, y)
+
+        # ax.set(xlim=(0, 8), xticks=np.arange(1, 8),
+        #        ylim=(0, 8), yticks=np.arange(1, 8))
+
+        plt.show()
 
     def check_argument(self, index, des):
         before = self.state.view(-1).numpy().tolist()
@@ -179,23 +230,39 @@ class PostGreEnv:
         database_conn = self.database_conn
         cur = database_conn.cursor()
         t1 = time.time()
-        for i in range(1000):
+        # for i in range(1000):
+        #     s = ''
+        #     for j in range(1, 10000 + 1):
+        #         s += '\t'.join([str(i * 10000 + j),
+        #                         fake.name(),
+        #                         str(random.randint(18, 48)),
+        #                         fake.city_name(),
+        #                         fake.phone_number(),
+        #                         str(random.randint(5000, 50000)),
+        #                         fake.job(),
+        #                         str(fake.unix_time(end_datetime=None, start_datetime=None)),
+        #                         str(random.randint(1, 9)),
+        #                         ])
+        #         s += '\n'
+        #     cur.copy_from(StringIO(s), 'ppo_data',
+        #                   columns=('id', 'name', 'age', 'address', 'telephone',
+        #                            'salary', 'section', 'emp_id', 'section_id'))
+        #     database_conn.commit()
+        for i in range(100):
             s = ''
-            for j in range(1, 10000 + 1):
-                s += '\t'.join([str(i * 10000 + j),
-                                fake.name(),
-                                str(random.randint(18, 48)),
-                                fake.city_name(),
-                                fake.phone_number(),
-                                str(random.randint(5000, 50000)),
-                                fake.job(),
-                                str(fake.unix_time(end_datetime=None, start_datetime=None)),
+            for j in range(1, 100 + 1):
+                s += '\t'.join([str(i * 100 + j),
                                 str(random.randint(1, 9)),
+                                fake.name(),
+                                str(random.randint(1, 100)),
+                                fake.city_name(),
+                                fake.color(),
+                                str(random.randint(1, 33)),
                                 ])
                 s += '\n'
-            cur.copy_from(StringIO(s), 'ppo_data',
-                          columns=('id', 'name', 'age', 'address', 'telephone',
-                                   'salary', 'section', 'emp_id', 'section_id'))
+            cur.copy_from(StringIO(s), 'ppo_section',
+                          columns=('id', 'section_id', 'name', 'priority', 'address', 'color',
+                                   'floor'))
             database_conn.commit()
         database_conn.close()
 
@@ -203,8 +270,6 @@ class PostGreEnv:
 if __name__ == '__main__':
     t1 = time.time()
     ss = PostGreEnv()
-    first = ss.reset()
-    print(first)
-    ss.step(1)
-    print(time.time() - t1)
+    fake = Faker(locale='zh_CN')
+
 

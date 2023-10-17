@@ -12,6 +12,7 @@ import torch.optim as optim
 from torch.distributions.categorical import Categorical
 
 
+
 class TaskInfo:
     def __init__(self):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -190,28 +191,13 @@ class PPOHandler:
                     actor_loss_list.append(pg_loss.item())
                     critic_loss_list.append(v_loss.item())
 
-
-        a = np.array(actor_loss_list)
-        b = np.array(critic_loss_list)
-        np.savetxt('./loss.txt', (a, b))
-
         times = int((args.batch_size / args.minibatch_size) * args.update_epochs * args.total_timesteps / args.batch_size)
 
         plt.plot(range(1, times + 1), actor_loss_list, 'b-')
         # plt.plot(range(1, times + 1), critic_loss_list, 'r-')
-        plt.title('Loss')
+        plt.title('ActorLoss')
         plt.show()
 
-
-def get_env_info(envs):
-    start = envs.reset()[0]
-    print(start)
-    next_state, reward, done = envs.step(1)[0:3]
-    print(next_state, reward, done)
-    next_state, reward, done = envs.step(2)[0:3]
-    print(next_state, reward, done)
-    next_state, reward, done = envs.step(3)[0:3]
-    print(next_state, reward, done)
 
 if __name__ == '__main__':
     from postgre_env import PostGreEnv
@@ -222,5 +208,4 @@ if __name__ == '__main__':
     envs__ = PostGreEnv()
     handler = PPOHandler(envs__)
     handler.learn()
-    print("第一次查询速度", envs__.first_query_cost)
-    print("学习完的查询速度", envs__.query_cost_now)
+    envs__.show_plt()
